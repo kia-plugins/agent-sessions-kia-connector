@@ -133,28 +133,14 @@ it('vanished-key-kept-in-fps', async () => {
   expect(d.fps[h('b')]).toBe(c.fps[h('b')]);
 });
 
-it('batch-never-exceeds-25-docs (479-child family); multi-doc unit fp only after its last doc', async () => {
+it('batch-never-exceeds-15-docs (479-child family); multi-doc unit fp only after its last doc', async () => {
   const specs: Spec[] = [{ key: 'p' }, ...Array.from({ length: 479 }, (_, i) => ({ key: `k${i}`, parent: 'p' }))];
   const { batches } = await drain(C0(), specs);
-  expect(Math.max(...batches.map((b) => b.items.length))).toBeLessThanOrEqual(25);
+  expect(Math.max(...batches.map((b) => b.items.length))).toBeLessThanOrEqual(15);
   const multi = await drain(C0(), [{ key: 'hist', docs: 30 }]);
-  expect(multi.batches[0].items).toHaveLength(25);
+  expect(multi.batches[0].items).toHaveLength(15);
   expect(multi.batches[0].cursor.fps[h('hist')]).toBeUndefined();
   expect(multi.cursor.fps[h('hist')]).toBeDefined();
-});
-
-it('batch-never-exceeds-8MiB of markdown', async () => {
-  const MiB = 1024 * 1024;
-  const big: Unit[] = Array.from({ length: 10 }, (_, i) => ({
-    key: `m${i}`,
-    files: [{ rel: `m${i}`, size: 1, mtimeMs: 1, dev: '1', ino: '1' }],
-    async render() {
-      return [{ externalId: `m${i}`, type: 'agent.session', title: 't', markdown: 'x'.repeat(MiB), metadata: {}, createdAt: null }];
-    },
-  }));
-  const sizes: number[] = [];
-  for await (const b of runSync({ cursor: C0(), units: big, session: fakeSession() })) sizes.push(b.items.length);
-  expect(sizes).toEqual([8, 2]);
 });
 
 it('intermediate cursors carry tz', async () => {

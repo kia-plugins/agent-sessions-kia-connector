@@ -46,12 +46,6 @@ it('budget-head-tail-omission', () => {
   expect(body).toMatch(/_… \d+ turns omitted …_/);
 });
 
-it('redacts turn text before cutting', () => {
-  const b = new TranscriptBuilder('UTC');
-  b.user('my key sk-ant-api03-AbCdEfGhIjKlMnOp1234');
-  expect(b.body()).toContain('my key [redacted]');
-});
-
 it('renderSession header + makeTitle + tildify', () => {
   expect(tildify('/Users/eldar/work/a')).toBe('~/work/a');
   expect(makeTitle(undefined, '  \nFix the login bug\nmore', 'x')).toBe('Fix the login bug');

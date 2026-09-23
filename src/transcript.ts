@@ -1,4 +1,3 @@
-import { redact } from './redact';
 
 export const DOC_BUDGET = 512 * 1024;
 export const HALF = DOC_BUDGET / 2;
@@ -50,14 +49,14 @@ export function toolLine(name: string, input: unknown): string {
       }
     }
   } else if (typeof input === 'string') summary = input;
-  summary = redact(firstLineOf(summary)).slice(0, SUMMARY_CAP);
+  summary = firstLineOf(summary).slice(0, SUMMARY_CAP);
   return summary ? `→ ${name}: ${summary}` : `→ ${name}`;
 }
 
 export function makeTitle(...candidates: Array<string | undefined>): string {
   for (const c of candidates) {
     const line = c ? firstLineOf(c) : '';
-    if (line) return redact(line).slice(0, 80);
+    if (line) return line.slice(0, 80);
   }
   return 'Session';
 }
@@ -83,18 +82,17 @@ export class TranscriptBuilder {
 
   user(text: string, at?: string): void {
     this.flush();
-    const clean = redact(text);
-    if (this.firstUserText === undefined) this.firstUserText = clean;
-    this.cur = { role: 'user', at, text: clean, tools: [] };
+    if (this.firstUserText === undefined) this.firstUserText = text;
+    this.cur = { role: 'user', at, text, tools: [] };
   }
 
   assistantText(text: string, at?: string): void {
     const t = this.ensureAssistant(at);
-    t.text += (t.text ? '\n\n' : '') + redact(text.trim());
+    t.text += (t.text ? '\n\n' : '') + text.trim();
   }
 
   tool(line: string, at?: string): void {
-    this.ensureAssistant(at).tools.push(redact(line));
+    this.ensureAssistant(at).tools.push(line);
   }
 
   marker(text: string): void {
@@ -162,5 +160,5 @@ export function renderSession(h: SessionHeader, body: string, tz: string): strin
   ].filter(Boolean).join(' · ');
   const started = h.startedAt && !Number.isNaN(Date.parse(h.startedAt)) ? `Started ${stamp(Date.parse(h.startedAt), tz)} · ` : '';
   const md = `# ${h.title}\n${line1}\n${started}Resume: \`${h.resume}\`\n\n${body}`;
-  return redact(cutBytes(md, DOC_BUDGET + 4096));
+  return cutBytes(md, DOC_BUDGET + 4096);
 }

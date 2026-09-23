@@ -4,8 +4,8 @@ import type { FileStat } from './files';
 
 /** Bump whenever parsing, filtering, redaction or layout changes (spec §4.3). */
 export const RENDER_VERSION = 1;
-const MAX_DOCS = 25;
-const MAX_BYTES = 8 * 1024 * 1024;
+/** Docs are capped near 516 KiB, so 15 per batch keeps a batch under ~8 MiB. */
+const MAX_DOCS = 15;
 
 export function h(s: string): string {
   return createHash('sha256').update(s).digest('base64url').slice(0, 11);
@@ -40,10 +40,8 @@ export async function* runSync(o: {
   units: Unit[];
   session: Pick<Session, 'signal' | 'log'>;
   maxDocs?: number;
-  maxBytes?: number;
 }): AsyncGenerator<Batch<SyncCursor, DocumentInput>> {
   const maxDocs = o.maxDocs ?? MAX_DOCS;
-  const maxBytes = o.maxBytes ?? MAX_BYTES;
   const cur = o.cursor;
   const fps = { ...cur.fps };
   const parents = { ...cur.parents };
@@ -87,7 +85,6 @@ export async function* runSync(o: {
   }
 
   let items: DocumentInput[] = [];
-  let bytes = 0;
   for (const u of ordered) {
     if (!selected.has(u.uh)) continue;
     if (o.session.signal.aborted) return;
@@ -106,12 +103,10 @@ export async function* runSync(o: {
     if (docs.length === 0) fps[u.uh] = ok ? fp : `!${fp}`;
     for (let i = 0; i < docs.length; i++) {
       items.push(docs[i]);
-      bytes += Buffer.byteLength(docs[i].markdown ?? '');
       if (i === docs.length - 1) fps[u.uh] = fp;
-      if (items.length >= maxDocs || bytes >= maxBytes) {
+      if (items.length >= maxDocs) {
         yield { phase, items, cursor: checkpoint(cur.pass) };
         items = [];
-        bytes = 0;
         if (o.session.signal.aborted) return;
       }
     }
