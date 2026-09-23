@@ -10,10 +10,19 @@ export interface AgentCtx {
   root: 'claude' | 'codex';
   agent: Agent;
   label: string;
+  types: string[];
   resume(sessionId: string): string;
 }
-export const CLAUDE: AgentCtx = { root: 'claude', agent: 'claude-code', label: 'Claude Code', resume: (id) => `claude --resume ${id}` };
-export const CODEX: AgentCtx = { root: 'codex', agent: 'codex', label: 'Codex', resume: (id) => `codex resume ${id}` };
+export const CLAUDE: AgentCtx = {
+  root: 'claude', agent: 'claude-code', label: 'Claude Code',
+  types: ['agent.session', 'agent.plan', 'agent.tasks', 'agent.memory', 'agent.prompts'],
+  resume: (id) => `claude --resume ${id}`,
+};
+export const CODEX: AgentCtx = {
+  root: 'codex', agent: 'codex', label: 'Codex',
+  types: ['agent.session', 'agent.memory', 'agent.prompts'],
+  resume: (id) => `codex resume ${id}`,
+};
 
 export const str = (v: unknown): string | undefined => (typeof v === 'string' && v.trim() ? v : undefined);
 
