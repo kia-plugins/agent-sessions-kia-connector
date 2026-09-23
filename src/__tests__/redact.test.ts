@@ -53,3 +53,12 @@ it('is idempotent', () => {
   const once = redact('password="hunter2hunter2x" sk-ant-api03-AbCdEfGhIjKlMnOp1234');
   expect(redact(once)).toBe(once);
 });
+
+it('redact.linear-on-long-runs (whole-document pass over 1 MiB blobs)', () => {
+  for (const s of ['x'.repeat(1 << 20), 'ab.cd_'.repeat(1 << 18)]) {
+    const t = Date.now();
+    expect(redact(s)).toBe(s);
+    expect(Date.now() - t).toBeLessThan(1000);
+  }
+  expect(redact(`${'x'.repeat(1 << 20)} api_key=abc123def456ghi`)).toMatch(/ api_key=\[redacted\]$/);
+});

@@ -12,7 +12,9 @@ const TOKENS: RegExp[] = [
   /\bBearer\s+[A-Za-z0-9._~+/=-]{20,}/g,
 ];
 
-const KEY = String.raw`[A-Za-z0-9_.-]*(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]*`;
+// Anchored at the start of an identifier and bounded, so one pass over a
+// megabyte-long run stays linear (an unanchored `[…]*` scan is quadratic).
+const KEY = String.raw`(?<![A-Za-z0-9_.-])[A-Za-z0-9_.-]{0,64}?(?:password|passwd|secret|token|api[_-]?key|access[_-]?key|private[_-]?key)[A-Za-z0-9_.-]{0,64}`;
 const ASSIGN = new RegExp(
   String.raw`(["']?)(${KEY})\1(\s*[:=]\s*)("(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\s,;}\])]+)`,
   'gi',
@@ -23,7 +25,7 @@ function looksSecret(value: string): boolean {
   return raw.length >= 12 && /[A-Za-z]/.test(raw) && /\d/.test(raw) && raw !== '[redacted]';
 }
 
-/** Safety net, not DLP (spec §4.7). Applied before any truncation. */
+/** Safety net, not DLP (spec §4.7). Applied once per document, by `finalize`. */
 export function redact(s: string): string {
   let out = s.replace(PEM, '[redacted private key]');
   for (const re of TOKENS) out = out.replace(re, '[redacted]');
