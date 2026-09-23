@@ -1,4 +1,4 @@
-const PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|$)/g;
+const PEM = /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*?(?:-----END [A-Z ]*PRIVATE KEY-----|(?=\n[ \t]*\n)|$)/g;
 
 const TOKENS: RegExp[] = [
   /\bsk-ant-[A-Za-z0-9_-]{10,}/g,

@@ -20,6 +20,10 @@ it('redact.unterminated-pem', () => {
   expect(redact('-----BEGIN PRIVATE KEY-----\nabc\n-----END PRIVATE KEY-----\nafter')).toBe('[redacted private key]\nafter');
 });
 
+it('redact.unterminated-pem stops at the next blank line', () => {
+  expect(redact('-----BEGIN RSA PRIVATE KEY-----\nMIIEow...\n\n## Next turn')).toBe('[redacted private key]\n\n## Next turn');
+});
+
 it('redact.quoted-json-key', () => {
   expect(redact('{"password": "hunter2hunter2x"}')).toBe('{"password": "[redacted]"}');
   expect(redact("{'api_key': 'abc123def456ghi'}")).toBe("{'api_key': '[redacted]'}");
