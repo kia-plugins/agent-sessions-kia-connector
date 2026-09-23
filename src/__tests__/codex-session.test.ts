@@ -25,9 +25,13 @@ it('head: main thread, nested subagent via parent_thread_id, fallback via source
   expect(parseCodexHead(null)).toEqual({ legacy: false });
 });
 
-it('codex.current.agent-message-is-assistant', async () => {
-  const s = await parse([meta(), ri({ type: 'agent_message', author: '/root', recipient: '/root/x', content: [{ type: 'input_text', text: 'Review the parser' }] })]);
-  expect(s.body).toBe('## Assistant — 16:26\nReview the parser');
+it('codex.current.agent-message-is-an-incoming-turn (task from the parent, report from a subagent)', async () => {
+  const s = await parse([
+    meta({ parent_thread_id: PID }),
+    ri({ type: 'agent_message', author: '/root', recipient: '/root/x', content: [{ type: 'input_text', text: 'Review the parser' }] }),
+    msg('assistant', ['Looks fine']),
+  ]);
+  expect(s.body).toBe('## User — 16:26\nReview the parser\n\n_— from /root_\n\n## Assistant — 16:26\nLooks fine');
 });
 
 it('codex.current.filters-injected-context (+ developer dropped, AGENTS.md dropped)', async () => {

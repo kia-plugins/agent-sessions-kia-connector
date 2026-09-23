@@ -64,9 +64,13 @@ export async function parseCodexSession(lines: AsyncIterable<string | typeof OVE
         if (item.role === 'user') b.user(partTexts(item.content), at);
         else if (item.role === 'assistant') b.assistant(partTexts(item.content), at);
         break;
-      case 'agent_message':
-        b.assistant(partTexts(item.content), at);
+      case 'agent_message': {
+        // Always INCOMING from another agent (the parent's task, a subagent's
+        // report); this thread's own replies are `message` role=assistant.
+        const from = str(item.author);
+        b.user([...partTexts(item.content), ...(from ? [`_— from ${from}_`] : [])], at);
         break;
+      }
       case 'function_call':
         if (typeof item.name === 'string') b.tool(item.name, item.arguments, at);
         break;
