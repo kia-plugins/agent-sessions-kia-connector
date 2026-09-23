@@ -1,3 +1,5 @@
+import { classifyUserText } from './wrappers';
+
 
 export const DOC_BUDGET = 512 * 1024;
 export const HALF = DOC_BUDGET / 2;
@@ -43,8 +45,9 @@ export function toolLine(name: string, input: unknown): string {
   if (obj && typeof obj === 'object') {
     for (const k of SUMMARY_KEYS) {
       const v = (obj as Record<string, unknown>)[k];
-      if (typeof v === 'string' && v.trim()) {
-        summary = v;
+      const text = Array.isArray(v) && v.every((x) => typeof x === 'string') ? v.join(' ') : v;
+      if (typeof text === 'string' && text.trim()) {
+        summary = text;
         break;
       }
     }
@@ -80,24 +83,27 @@ export class TranscriptBuilder {
 
   constructor(private readonly tz: string) {}
 
-  user(text: string, at?: string): void {
+  /** One user record: injected wrapper parts are dropped per part; no-op if nothing is left. */
+  user(parts: string[], at?: string): void {
+    const text = parts
+      .map(classifyUserText)
+      .flatMap((c) => (c.kind === 'keep' ? [c.text] : []))
+      .join('\n\n');
+    if (!text) return;
     this.flush();
     if (this.firstUserText === undefined) this.firstUserText = text;
     this.cur = { role: 'user', at, text, tools: [] };
   }
 
-  assistantText(text: string, at?: string): void {
+  assistant(parts: string[], at?: string): void {
+    const text = parts.map((p) => p.trim()).filter(Boolean).join('\n\n');
+    if (!text) return;
     const t = this.ensureAssistant(at);
-    t.text += (t.text ? '\n\n' : '') + text.trim();
+    t.text += (t.text ? '\n\n' : '') + text;
   }
 
-  tool(line: string, at?: string): void {
-    this.ensureAssistant(at).tools.push(line);
-  }
-
-  marker(text: string): void {
-    this.flush();
-    this.push(`_${text}_`);
+  tool(name: string, input: unknown, at?: string): void {
+    this.ensureAssistant(at).tools.push(toolLine(name, input));
   }
 
   body(): string {
@@ -159,6 +165,5 @@ export function renderSession(h: SessionHeader, body: string, tz: string): strin
     h.gitBranch ? `Branch: ${h.gitBranch}` : '',
   ].filter(Boolean).join(' · ');
   const started = h.startedAt && !Number.isNaN(Date.parse(h.startedAt)) ? `Started ${stamp(Date.parse(h.startedAt), tz)} · ` : '';
-  const md = `# ${h.title}\n${line1}\n${started}Resume: \`${h.resume}\`\n\n${body}`;
-  return cutBytes(md, DOC_BUDGET + 4096);
+  return `# ${h.title}\n${line1}\n${started}Resume: \`${h.resume}\`\n\n${body}`;
 }

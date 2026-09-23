@@ -8,6 +8,7 @@ it('toolLine picks the most descriptive field, else the raw first line, capped a
   expect(toolLine('exec_command', '{"cmd":"ls -la"}')).toBe('→ exec_command: ls -la');
   expect(toolLine('exec', 'const r = await tools.exec({})\nmore')).toBe('→ exec: const r = await tools.exec({})');
   expect(toolLine('X', {})).toBe('→ X');
+  expect(toolLine('shell', { command: ['bash', '-lc', 'ls'] })).toBe('→ shell: bash -lc ls');
   expect(toolLine('Bash', { command: 'y'.repeat(500) })).toHaveLength('→ Bash: '.length + 160);
 });
 
@@ -20,17 +21,25 @@ it('dayKey/hhmm use the given zone', () => {
 
 it('merges consecutive assistant records into one turn with tool lines', () => {
   const b = new TranscriptBuilder('UTC');
-  b.user('hello', '2026-01-01T10:00:00Z');
-  b.assistantText('hi', '2026-01-01T10:01:00Z');
-  b.tool('→ Bash: ls', '2026-01-01T10:01:05Z');
-  b.assistantText('done', '2026-01-01T10:02:00Z');
+  b.user(['hello'], '2026-01-01T10:00:00Z');
+  b.assistant(['hi'], '2026-01-01T10:01:00Z');
+  b.tool('Bash', { command: 'ls' }, '2026-01-01T10:01:05Z');
+  b.assistant(['done'], '2026-01-01T10:02:00Z');
   expect(b.body()).toBe('## User — 10:00\nhello\n\n## Assistant — 10:01\nhi\n\ndone\n→ Bash: ls');
   expect(b.firstUserText).toBe('hello');
 });
 
+it('user() filters injected wrapper parts and keeps the rest', () => {
+  const b = new TranscriptBuilder('UTC');
+  b.user(['<system-reminder>noise</system-reminder>']);
+  b.user(['<command-name>/review</command-name><command-args>42</command-args>', '<system-reminder>x</system-reminder>', 'please']);
+  expect(b.body()).toBe('## User\n/review 42\n\nplease');
+  expect(b.firstUserText).toBe('/review 42\n\nplease');
+});
+
 it('turn-cut-at-16k', () => {
   const b = new TranscriptBuilder('UTC');
-  b.user('a'.repeat(TURN_CAP * 2));
+  b.user(['a'.repeat(TURN_CAP * 2)]);
   const body = b.body();
   expect(body.endsWith('… (truncated)')).toBe(true);
   expect(Buffer.byteLength(body)).toBeLessThan(TURN_CAP + 100);
@@ -38,7 +47,7 @@ it('turn-cut-at-16k', () => {
 
 it('budget-head-tail-omission', () => {
   const b = new TranscriptBuilder('UTC');
-  for (let i = 0; i < 200; i++) b.user(`turn-${i} ` + 'x'.repeat(8000));
+  for (let i = 0; i < 200; i++) b.user([`turn-${i} ` + 'x'.repeat(8000)]);
   const body = b.body();
   expect(Buffer.byteLength(body)).toBeLessThanOrEqual(2 * HALF + 200);
   expect(body).toContain('turn-0 ');
