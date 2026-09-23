@@ -1,0 +1,14 @@
+{
+  "id": "kia.agent-sessions",
+  "name": "Agent Sessions",
+  "version": "1.0.0",
+  "engine": "^2.3.0",
+  "entry": "dist/index.js",
+  "caps": ["files"],
+  "fileRoots": [
+    { "id": "claude", "path": "~/.claude", "purpose": "Claude Code sessions, plans, tasks, memory and prompt history" },
+    { "id": "codex", "path": "~/.codex", "purpose": "Codex sessions, memory and prompt history" }
+  ],
+  "contributes": { "sources": ["claude-code", "codex"], "senders": [] },
+  "icon": "icon.png"
+}
