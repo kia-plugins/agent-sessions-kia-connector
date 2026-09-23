@@ -32,7 +32,10 @@ export async function listDir(files: Files, root: string, rel: string): Promise<
     try {
       page = await files.list({ root, rel }, { cursor, limit: 1000 });
     } catch (e) {
-      if (isMissing(e)) return out;
+      // A missing folder is empty. Any other error on a SUB-folder (EACCES,
+      // a transient RPC failure) skips only that folder this tick; only the
+      // root listing may fail the whole pull (revoked or unreadable root).
+      if (isMissing(e) || rel !== '') return out;
       throw e;
     }
     for (const e of page.entries)

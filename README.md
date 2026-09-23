@@ -23,7 +23,7 @@ History stays in KIA after Claude Code's 30-day cleanup deletes the original fil
 
 ## Privacy
 
-- On install, KIA asks for **read-only** access to `~/.claude` and `~/.codex`. The connector never writes to either folder.
+- On install, KIA asks for **read-only** access to `~/.claude` and `~/.codex`. The connector never writes to either folder. The grant covers each whole folder, including files such as `~/.codex/auth.json` and `~/.claude/settings.json`; the connector never opens those, only the files listed above.
 - Common secrets (API keys, tokens, private keys, `password=`-style assignments) are masked before anything is stored. This is a safety net, not data-loss prevention: a secret that matches no pattern **is** indexed.
 - The connector reads local files only and makes no network requests.
 

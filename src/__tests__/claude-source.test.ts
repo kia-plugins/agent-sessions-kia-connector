@@ -51,7 +51,10 @@ beforeEach(async () => {
   await put('CLAUDE.md', 'global rules');
   await put('history.jsonl', JSON.stringify({ display: 'fix login', timestamp: Date.parse('2026-09-23T10:02:00Z'), project: '/Users/e/work/alpha-cent', sessionId: S1 }) + '\n');
 });
-afterEach(() => fs.rm(root, { recursive: true, force: true }));
+afterEach(async () => {
+  await fs.chmod(path.join(root, PROJ), 0o755).catch(() => undefined);
+  await fs.rm(root, { recursive: true, force: true });
+});
 
 const source = (tz = 'UTC', maxDocs?: number) => claudeSource(fsFiles({ claude: root }), { tz: () => tz, maxDocs });
 
@@ -152,4 +155,11 @@ it('source.finalizes-every-item (redaction happens once, in the shell)', async (
   expect(all).not.toContain('sk-ant-api03-AbCd');
   expect(all).not.toContain('abc123def456ghi789');
   expect(docs.find((d) => d.externalId === `session:${S1}`)!.title).toBe('my key [redacted]');
+});
+
+it('discovery.unreadable-subfolder-skips-only-that-folder', async () => {
+  await fs.chmod(path.join(root, PROJ), 0o000);
+  const { ids } = await pull(source(), null);
+  expect(ids).toEqual(expect.arrayContaining(['plan:spicy-wall.md', `tasks:${S1}`, 'prompts:2026-09-23', 'memory:CLAUDE.md']));
+  expect(ids).not.toContain(`session:${S1}`);
 });

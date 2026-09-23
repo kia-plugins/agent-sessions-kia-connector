@@ -1,3 +1,4 @@
+import { redact } from './redact';
 import { classifyUserText } from './wrappers';
 
 
@@ -52,14 +53,15 @@ export function toolLine(name: string, input: unknown): string {
       }
     }
   } else if (typeof input === 'string') summary = input;
-  summary = firstLineOf(summary).slice(0, SUMMARY_CAP);
+  // Redact before every cut: a cut secret no longer matches (finalize stays the guarantee).
+  summary = redact(firstLineOf(summary)).slice(0, SUMMARY_CAP);
   return summary ? `→ ${name}: ${summary}` : `→ ${name}`;
 }
 
 export function makeTitle(...candidates: Array<string | undefined>): string {
   for (const c of candidates) {
     const line = c ? firstLineOf(c) : '';
-    if (line) return line.slice(0, 80);
+    if (line) return redact(line).slice(0, 80);
   }
   return 'Session';
 }
@@ -128,7 +130,7 @@ export class TranscriptBuilder {
     this.cur = null;
     const when = t.at && !Number.isNaN(Date.parse(t.at)) ? ` — ${hhmm(Date.parse(t.at), this.tz)}` : '';
     const content = [t.text, ...t.tools].filter(Boolean).join('\n');
-    this.push(cutBytes(`## ${t.role === 'user' ? 'User' : 'Assistant'}${when}\n${content}`, TURN_CAP));
+    this.push(cutBytes(redact(`## ${t.role === 'user' ? 'User' : 'Assistant'}${when}\n${content}`), TURN_CAP));
   }
 
   private push(s: string): void {

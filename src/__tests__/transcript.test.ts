@@ -65,3 +65,13 @@ it('renderSession header + makeTitle + tildify', () => {
     'BODY', 'UTC');
   expect(md).toBe('# T\nAgent: Claude Code 2.1.267 · Project: ~/work/a · Branch: dev\nStarted 2026-09-23 08:02 · Resume: `claude --resume abc`\n\nBODY');
 });
+
+it('redacts before cutting, so a secret straddling the turn cut leaves no readable part', () => {
+  const pre = 'eyJhbGciOiJIUzI1NiJ9.eyJlbWFpbCI6ImFAYi5jIn0.';
+  const b = new TranscriptBuilder('UTC');
+  // The cut lands 2 chars into the JWT signature: after it, the regex (third segment >= 5) no longer matches.
+  b.user(['a'.repeat(TURN_CAP - '## User\n'.length - 1 - pre.length - 2) + ' ' + pre + 'SIGNATURE0123456789']);
+  expect(b.body()).not.toContain('eyJlbWFpbCI6');
+  expect(toolLine('Bash', { command: `${'x'.repeat(118)} curl -H "Authorization: Bearer ${'T'.repeat(40)}"` })).not.toMatch(/Bearer T/);
+  expect(makeTitle(`${'x'.repeat(60)} Bearer ${'T'.repeat(40)}`)).not.toMatch(/Bearer T/);
+});
