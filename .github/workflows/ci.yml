@@ -18,9 +18,6 @@ jobs:
         with:
           node-version: 24
           cache: npm
-      # Some transitive deps (e.g. Baileys' libsignal) resolve via git+ssh;
-      # the runner has no SSH key, so fetch GitHub over HTTPS instead.
-      - run: git config --global url."https://github.com/".insteadOf ssh://git@github.com/
       - run: npm ci
       - name: Versions agree (manifest.json, package.json, package-lock.json, tag)
         run: |
