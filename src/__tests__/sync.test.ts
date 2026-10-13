@@ -1,8 +1,8 @@
 import type { DocumentInput } from '@kiagent/connector-sdk';
 import { fakeSession } from '@kiagent/connector-sdk/testing';
-import { h, initialCursor, runSync, type SyncCursor, type Unit } from '../sync';
+import { DELETE_CHUNK, h, initialCursor, runSync, type SyncCursor, type Unit } from '../sync';
 
-type Spec = { key: string; mtime?: number; size?: number; ino?: string; parent?: string; fail?: boolean; docs?: number; deps?: string[] };
+type Spec = { key: string; mtime?: number; size?: number; ino?: string; parent?: string; fail?: boolean; docs?: number; deps?: string[]; sub?: boolean };
 let renders: string[];
 function units(specs: Spec[]): Unit[] {
   return specs.map((s) => ({
@@ -10,6 +10,7 @@ function units(specs: Spec[]): Unit[] {
     files: [{ rel: s.key, size: s.size ?? 10, mtimeMs: s.mtime ?? 1, dev: '1', ino: s.ino ?? '1' }],
     deps: s.deps,
     parentH: s.parent ? h(s.parent) : undefined,
+    subagent: s.sub ? { externalId: `session:${s.key}`, type: 'agent.session' as const } : undefined,
     async render() {
       renders.push(s.key);
       if (s.fail) throw new Error('boom');
@@ -19,9 +20,9 @@ function units(specs: Spec[]): Unit[] {
     },
   }));
 }
-async function drain(cursor: SyncCursor, specs: Spec[], opts: { maxDocs?: number; stopAfter?: number } = {}) {
+async function drain(cursor: SyncCursor, specs: Spec[], opts: { maxDocs?: number; stopAfter?: number; skip?: boolean } = {}) {
   const batches = [];
-  for await (const b of runSync({ cursor, units: units(specs), session: fakeSession(), maxDocs: opts.maxDocs })) {
+  for await (const b of runSync({ cursor, units: units(specs), session: fakeSession(), maxDocs: opts.maxDocs, skipSubagents: opts.skip })) {
     batches.push(b);
     if (opts.stopAfter && batches.length >= opts.stopAfter) break; // simulated crash
   }
@@ -146,4 +147,51 @@ it('batch-never-exceeds-15-docs (479-child family); multi-doc unit fp only after
 it('intermediate cursors carry tz', async () => {
   const { batches } = await drain(initialCursor('Asia/Tokyo'), [{ key: 'a' }, { key: 'b' }], { maxDocs: 1 });
   expect(batches.every((b) => b.cursor.tz === 'Asia/Tokyo')).toBe(true);
+});
+
+it('skip on: indexed subagents are deleted in a deletion-only batch before any render; a second pull emits nothing', async () => {
+  const specs: Spec[] = [{ key: 'm' }, { key: 'm/s1', parent: 'm', sub: true }, { key: 't', parent: 'm' }];
+  const c = (await drain(C0(), specs)).cursor; // indexed with skip off
+  renders = [];
+  const on = await drain(c, specs, { skip: true });
+  expect(on.batches[0]).toEqual(
+    expect.objectContaining({ items: [], deletions: [{ externalId: 'session:m/s1', type: 'agent.session' }] }),
+  );
+  expect(on.batches.flatMap((b) => b.deletions ?? [])).toHaveLength(1); // task 't' (has parentH) untouched
+  expect(renders).toEqual([]);
+  const again = await drain(on.cursor, specs, { skip: true });
+  expect(again.batches.flatMap((b) => b.deletions ?? [])).toEqual([]);
+});
+
+it('skip on: deletions are chunked by DELETE_CHUNK; crash after first chunk → replay deletes the rest', async () => {
+  const subs: Spec[] = Array.from({ length: DELETE_CHUNK + 3 }, (_, i) => ({
+    key: `m/s${String(i).padStart(4, '0')}`, parent: 'm', sub: true,
+  }));
+  const specs: Spec[] = [{ key: 'm' }, ...subs];
+  const c = (await drain(C0(), specs, { maxDocs: 1000 })).cursor;
+  const crashed = await drain(c, specs, { skip: true, stopAfter: 1 });
+  expect(crashed.batches[0].deletions).toHaveLength(DELETE_CHUNK);
+  const rest = await drain(crashed.cursor, specs, { skip: true });
+  expect(rest.batches.flatMap((b) => b.deletions ?? [])).toHaveLength(3);
+});
+
+it('skip off after on: subagents re-render, others do not', async () => {
+  const specs: Spec[] = [{ key: 'm' }, { key: 'm/s1', parent: 'm', sub: true }];
+  let c = (await drain(C0(), specs)).cursor;
+  c = (await drain(c, specs, { skip: true })).cursor;
+  renders = [];
+  await drain(c, specs, { skip: false });
+  expect(renders).toEqual(['m/s1']);
+});
+
+it('skip on, fresh cursor: a subagent is never rendered and nothing is deleted', async () => {
+  const r = await drain(C0(), [{ key: 'm' }, { key: 'm/s1', parent: 'm', sub: true }], { skip: true });
+  expect(renders).toEqual(['m']);
+  expect(r.batches.flatMap((b) => b.deletions ?? [])).toEqual([]);
+});
+
+it('skip on: a subagent whose render failed earlier (! entry) is still deleted once', async () => {
+  const c = (await drain(C0(), [{ key: 'm' }, { key: 'm/s1', parent: 'm', sub: true, fail: true }])).cursor;
+  const on = await drain(c, [{ key: 'm' }, { key: 'm/s1', parent: 'm', sub: true }], { skip: true });
+  expect(on.batches.flatMap((b) => b.deletions ?? [])).toEqual([{ externalId: 'session:m/s1', type: 'agent.session' }]);
 });

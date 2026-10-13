@@ -6,6 +6,8 @@ import type { FileStat } from './files';
 export const RENDER_VERSION = 1;
 /** Docs are capped near 516 KiB, so 15 per batch keeps a batch under ~8 MiB. */
 const MAX_DOCS = 15;
+/** Refs per deletion-only batch while skipping subagents (spec §4.3). */
+export const DELETE_CHUNK = 500;
 
 export function h(s: string): string {
   return createHash('sha256').update(s).digest('base64url').slice(0, 11);
@@ -54,9 +56,22 @@ export async function* runSync(o: {
   const byH = new Map<string, Unit & { uh: string }>();
   for (const u of o.units) byH.set(h(u.key), Object.assign(u, { uh: h(u.key) }));
   for (const [uh, u] of byH) if (u.recordParent) parents[uh] = u.parentH ?? '';
-  // After the recordParent loop, so skipped Codex subagents keep their cached
-  // parent and are never re-read (spec §4.3).
-  if (o.skipSubagents) for (const [uh, u] of byH) if (u.subagent) byH.delete(uh);
+  // Spec §4.3, after the recordParent loop so skipped Codex subagents keep
+  // their cached parent. While skipping, subagent units are never rendered,
+  // and any that were indexed (an fps entry exists, ok or failed) are deleted
+  // FIRST, in deletion-only batches. Each batch drops only ITS chunk's fps
+  // entries, so a crash between batches leaves the rest for the next pull.
+  const skipped = o.skipSubagents ? [...byH.values()].filter((u) => u.subagent) : [];
+  for (const u of skipped) byH.delete(u.uh);
+  const cleanup = skipped
+    .filter((u) => fps[u.uh] !== undefined)
+    .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : 0));
+  for (let i = 0; i < cleanup.length; i += DELETE_CHUNK) {
+    const chunk = cleanup.slice(i, i + DELETE_CHUNK);
+    for (const u of chunk) delete fps[u.uh];
+    yield { phase, items: [], deletions: chunk.map((u) => u.subagent!), cursor: checkpoint(cur.pass) };
+    if (o.session.signal.aborted) return;
+  }
 
   const depth = new Map<string, number>();
   const depthOf = (uh: string, seen: Set<string> = new Set()): number => {
