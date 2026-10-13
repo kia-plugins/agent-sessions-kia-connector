@@ -14,6 +14,7 @@ function sessionUnit(files: Files, tz: string, f: FileStat, sessionId: string, s
     key: sub ? `c:${sessionId}/${sub.agentId}` : `c:${sessionId}`,
     files: sub?.meta ? [f, sub.meta] : [f],
     parentH: sub ? h(`c:${sessionId}`) : undefined,
+    subagent: sub ? { externalId: `session:${sessionId}/${sub.agentId}`, type: 'agent.session' } : undefined,
     async render() {
       const info = await parseClaudeSession(streamLines(files, R, f.rel, f.size), tz);
       const sourcePath = displayPath(R, f.rel);

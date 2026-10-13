@@ -29,6 +29,8 @@ export interface Unit {
   deps?: string[];
   parentH?: string;
   recordParent?: boolean;
+  /** Set on subagent-session units: the doc they render (spec §4.2). */
+  subagent?: { externalId: string; type: 'agent.session' };
   render(): Promise<DocumentInput[]>;
 }
 
@@ -40,6 +42,7 @@ export async function* runSync(o: {
   units: Unit[];
   session: Pick<Session, 'signal' | 'log'>;
   maxDocs?: number;
+  skipSubagents?: boolean;
 }): AsyncGenerator<Batch<SyncCursor, DocumentInput>> {
   const maxDocs = o.maxDocs ?? MAX_DOCS;
   const cur = o.cursor;
@@ -51,6 +54,9 @@ export async function* runSync(o: {
   const byH = new Map<string, Unit & { uh: string }>();
   for (const u of o.units) byH.set(h(u.key), Object.assign(u, { uh: h(u.key) }));
   for (const [uh, u] of byH) if (u.recordParent) parents[uh] = u.parentH ?? '';
+  // After the recordParent loop, so skipped Codex subagents keep their cached
+  // parent and are never re-read (spec §4.3).
+  if (o.skipSubagents) for (const [uh, u] of byH) if (u.subagent) byH.delete(uh);
 
   const depth = new Map<string, number>();
   const depthOf = (uh: string, seen: Set<string> = new Set()): number => {

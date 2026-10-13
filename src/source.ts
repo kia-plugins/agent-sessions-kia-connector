@@ -1,5 +1,6 @@
 import type { DocumentInput, Source } from '@kiagent/connector-sdk';
-import { displayPath, finalize, parseJson, renderMemory, type AgentCtx } from './doc';
+import { optionValue } from '@kiagent/connector-sdk';
+import { displayPath, finalize, parseJson, renderMemory, SKIP_SUBAGENTS, type AgentCtx } from './doc';
 import { listDir, readText, streamLines, type FileStat, type Files } from './files';
 import { renderPromptDays, type PromptRow } from './prompts';
 import { initialCursor, runSync, type SyncCursor, type Unit } from './sync';
@@ -23,7 +24,7 @@ export function makeSource(
 ): Source<SyncCursor, DocumentInput> {
   const tz = opts?.tz ?? systemTz;
   return {
-    descriptor: { id: ctx.agent, name: ctx.label, documentTypes: ctx.types, auth: 'none', cadence: { every: '15m' } },
+    descriptor: { id: ctx.agent, name: ctx.label, documentTypes: ctx.types, auth: 'none', cadence: { every: '15m' }, options: [SKIP_SUBAGENTS] },
     async connect() {
       const roots = await files.roots();
       if (!roots.some((r) => r.id === ctx.root)) throw new Error(missingRootMessage(ctx));
@@ -33,7 +34,8 @@ export function makeSource(
       // tz is fixed by the FIRST pull and carried forever after (spec §4.3).
       const c = cursor && cursor.v === 1 && typeof cursor.tz === 'string' ? cursor : initialCursor(tz());
       const units = await discover(files, c);
-      for await (const b of runSync({ cursor: c, units, session, maxDocs: opts?.maxDocs })) {
+      const skipSubagents = optionValue({ options: [SKIP_SUBAGENTS] }, session.account.config, SKIP_SUBAGENTS.key) ?? true;
+      for await (const b of runSync({ cursor: c, units, session, maxDocs: opts?.maxDocs, skipSubagents })) {
         yield { ...b, items: b.items.map(finalize) };
       }
     },

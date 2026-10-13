@@ -66,6 +66,7 @@ export async function discoverCodex(files: Files, cursor: SyncCursor): Promise<U
       deps: [indexTitle ?? ''],
       parentH,
       recordParent: cache,
+      subagent: parentH ? { externalId: `session:${id}`, type: 'agent.session' } : undefined,
       async render() {
         const s = await parseCodexSession(streamLines(files, R, f.rel, f.size), tz);
         const title = makeTitle(indexTitle, s.head.nickname, s.firstUser, `Session ${id.slice(0, 8)}`);

@@ -5,6 +5,7 @@ import type { DocumentInput, Source } from '@kiagent/connector-sdk';
 import { fakeSession } from '@kiagent/connector-sdk/testing';
 import { fsFiles } from '../../test/support/fs-files';
 import { claudeSource } from '../claude/source';
+import { SKIP_SUBAGENTS } from '../doc';
 import type { SyncCursor } from '../sync';
 
 const S1 = '11111111-1111-4111-8111-111111111111';
@@ -22,11 +23,11 @@ async function put(rel: string, body: string) {
   await fs.mkdir(path.dirname(path.join(root, rel)), { recursive: true });
   await fs.writeFile(path.join(root, rel), body);
 }
-async function pull(src: Source<SyncCursor, DocumentInput>, cursor: SyncCursor | null, stopAfter?: number) {
+async function pull(src: Source<SyncCursor, DocumentInput>, cursor: SyncCursor | null, stopAfter?: number, skip = false) {
   const docs: DocumentInput[] = [];
   let last: SyncCursor | null = cursor;
   let n = 0;
-  for await (const b of src.pull(fakeSession(), cursor)) {
+  for await (const b of src.pull(fakeSession({ account: { config: { options: { skipSubagents: skip } } } }), cursor)) {
     docs.push(...b.items);
     last = b.cursor;
     if (stopAfter && ++n >= stopAfter) break;
@@ -144,6 +145,7 @@ it('descriptor', () => {
   expect(source().descriptor).toEqual({
     id: 'claude-code', name: 'Claude Code', auth: 'none', cadence: { every: '15m' },
     documentTypes: ['agent.session', 'agent.plan', 'agent.tasks', 'agent.memory', 'agent.prompts'],
+    options: [SKIP_SUBAGENTS],
   });
 });
 
@@ -162,4 +164,21 @@ it('discovery.unreadable-subfolder-skips-only-that-folder', async () => {
   const { ids } = await pull(source(), null);
   expect(ids).toEqual(expect.arrayContaining(['plan:spicy-wall.md', `tasks:${S1}`, 'prompts:2026-09-23', 'memory:CLAUDE.md']));
   expect(ids).not.toContain(`session:${S1}`);
+});
+
+it('declares the skipSubagents option, default on', () => {
+  expect(source().descriptor.options).toEqual([
+    expect.objectContaining({ key: 'skipSubagents', type: 'boolean', default: true }),
+  ]);
+});
+
+it('default config ({}) skips subagent sessions but keeps sessions, tasks, plans, memory', async () => {
+  const docs: DocumentInput[] = [];
+  for await (const b of source().pull(fakeSession(), null)) docs.push(...b.items);
+  const ids = docs.map((d) => d.externalId);
+  expect(ids).toContain(`session:${S1}`);
+  expect(ids).toContain(`tasks:${S1}`);
+  expect(ids).toContain('plan:spicy-wall.md');
+  expect(ids).not.toContain(`session:${S1}/a1`);
+  expect(ids).not.toContain(`session:${S2}/a2`);
 });

@@ -1,6 +1,16 @@
-import type { DocumentInput } from '@kiagent/connector-sdk';
+import type { DocumentInput, SourceOption } from '@kiagent/connector-sdk';
 import { redact } from './redact';
 import { cutBytes, DOC_BUDGET, renderSession } from './transcript';
+
+/** Spec source-options §4.1: declared by both sources; default on. */
+export const SKIP_SUBAGENTS: SourceOption = {
+  key: 'skipSubagents',
+  type: 'boolean',
+  default: true,
+  label: 'Skip subagent sessions',
+  description:
+    "Don't index sessions started by another agent (reviews, explorers). Your own sessions, plans, tasks, memory and prompts are still indexed.",
+};
 
 export type Agent = 'claude-code' | 'codex';
 export const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;

@@ -27,10 +27,10 @@ const rollout = (id: string, parent: string | undefined, text: string, nickname?
   ].map((r) => JSON.stringify(r)).join('\n') + '\n';
 const index = (id: string, name: string, at: string) => JSON.stringify({ id, thread_name: name, updated_at: at }) + '\n';
 
-async function pull(src: Source<SyncCursor, DocumentInput>, cursor: SyncCursor | null) {
+async function pull(src: Source<SyncCursor, DocumentInput>, cursor: SyncCursor | null, skip = false) {
   const docs: DocumentInput[] = [];
   let last = cursor;
-  for await (const b of src.pull(fakeSession(), cursor)) {
+  for await (const b of src.pull(fakeSession({ account: { config: { options: { skipSubagents: skip } } } }), cursor)) {
     docs.push(...b.items);
     last = b.cursor;
   }
@@ -118,4 +118,11 @@ it('codex.partial-first-line-not-cached (child caught mid-write still re-emits w
   await put(prel, rollout(P, undefined, 'parent work'));
   const third = await pull(source(), second.cursor);
   expect(third.ids).toEqual([`session:${P}`, `session:${C}`]);
+});
+
+it('skip on: threads with a parent (any depth) are not emitted; the parent is', async () => {
+  const { ids } = await pull(source(), null, true);
+  expect(ids).toContain(`session:${P}`);
+  expect(ids).not.toContain(`session:${C}`);
+  expect(ids).not.toContain(`session:${G}`);
 });
