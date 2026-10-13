@@ -1,8 +1,8 @@
 {
   "id": "kia.agent-sessions",
   "name": "Agent Sessions",
-  "version": "1.0.0",
-  "engine": "^2.3.0",
+  "version": "1.1.0",
+  "engine": "^2.12.0",
   "entry": "dist/index.js",
   "caps": ["files"],
   "fileRoots": [

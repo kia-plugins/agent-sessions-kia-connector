@@ -9,7 +9,7 @@ Two sources, one per agent, each added separately in KIA:
 | Document | Claude Code (`~/.claude`) | Codex (`~/.codex`) |
 |---|---|---|
 | **Session** — one per conversation: your prompts, the agent's replies, one line per tool call, and a `Resume:` command | `projects/*/*.jsonl` | `sessions/**`, `archived_sessions/` |
-| **Subagent session** — linked to its parent session | `projects/*/<session>/subagents/` | threads with a parent thread |
+| **Subagent session** — linked to its parent session; skipped by default (see [Options](#options)) | `projects/*/<session>/subagents/` | threads with a parent thread |
 | **Plan** | `plans/*.md` | — |
 | **Tasks** — checklist, linked to its session | `tasks/<list>/` | — |
 | **Memory** | `CLAUDE.md`, `projects/*/memory/` | `AGENTS.md`, `memories/` |
@@ -20,6 +20,12 @@ Long sessions keep their beginning and end (up to 512 KiB per document) and note
 **Not indexed:** tool outputs, thinking/reasoning, attachments, injected context (system reminders, environment blocks, `AGENTS.md` preambles), and costs or token counts.
 
 History stays in KIA after Claude Code's 30-day cleanup deletes the original files.
+
+## Options
+
+Each source has **Skip subagent sessions** on its account page (on by default). While it is on, sessions started by another agent — reviews, explorers, Codex child threads — are not indexed, and any already indexed are removed on the next sync. Turn it off to index them again (a few minutes for thousands of sessions). Subagent sessions whose files Claude Code or Codex already deleted cannot be removed by the connector and stay searchable.
+
+Requires KIA with platform API 2.12.0 or later.
 
 ## Privacy
 
