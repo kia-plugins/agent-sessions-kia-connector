@@ -14,11 +14,23 @@ const firstLineOf = (s: string): string => s.split('\n').find((l) => l.trim())?.
 export function systemTz(): string {
   return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC';
 }
+/** One formatter per zone: each Intl.DateTimeFormat holds native ICU memory
+ *  freed only after GC, and one per row pushed a full pass past 1 GB RSS. */
+function cached(make: (tz: string) => Intl.DateTimeFormat): (tz: string) => Intl.DateTimeFormat {
+  const byTz = new Map<string, Intl.DateTimeFormat>();
+  return (tz) => {
+    let f = byTz.get(tz);
+    if (!f) byTz.set(tz, (f = make(tz)));
+    return f;
+  };
+}
+const dayFmt = cached((tz) => new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }));
+const timeFmt = cached((tz) => new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }));
 export function dayKey(ms: number, tz: string): string {
-  return new Intl.DateTimeFormat('en-CA', { timeZone: tz, year: 'numeric', month: '2-digit', day: '2-digit' }).format(ms);
+  return dayFmt(tz).format(ms);
 }
 export function hhmm(ms: number, tz: string): string {
-  return new Intl.DateTimeFormat('en-GB', { timeZone: tz, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(ms);
+  return timeFmt(tz).format(ms);
 }
 export function stamp(ms: number, tz: string): string {
   return `${dayKey(ms, tz)} ${hhmm(ms, tz)}`;

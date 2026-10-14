@@ -12,6 +12,26 @@ it('toolLine picks the most descriptive field, else the raw first line, capped a
   expect(toolLine('Bash', { command: 'y'.repeat(500) })).toHaveLength('→ Bash: '.length + 160);
 });
 
+it('dayKey/hhmm build one formatter per zone, not one per call', () => {
+  // Each Intl.DateTimeFormat holds native ICU memory that is freed only after
+  // GC; one per prompt row pushed the extension host past 1 GB RSS.
+  const real = Intl.DateTimeFormat;
+  let built = 0;
+  const spy = jest.spyOn(Intl, 'DateTimeFormat').mockImplementation(((...a: ConstructorParameters<typeof real>) => {
+    built += 1;
+    return new real(...a);
+  }) as unknown as typeof real);
+  try {
+    for (let i = 0; i < 1000; i++) {
+      dayKey(i * 60_000, 'Asia/Tokyo');
+      hhmm(i * 60_000, 'Asia/Tokyo');
+    }
+    expect(built).toBeLessThanOrEqual(2);
+  } finally {
+    spy.mockRestore();
+  }
+});
+
 it('dayKey/hhmm use the given zone', () => {
   const ms = Date.parse('2026-01-01T23:30:00Z');
   expect(dayKey(ms, 'UTC')).toBe('2026-01-01');
